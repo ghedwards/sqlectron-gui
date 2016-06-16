@@ -1,19 +1,21 @@
-import { debounce } from 'lodash';
+import { debounce, union } from 'lodash';
 import React, { Component, PropTypes } from 'react';
 import { connect } from 'react-redux';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import { sqlectron } from '../../browser/remote';
 import * as ConnActions from '../actions/connections.js';
 import * as QueryActions from '../actions/queries';
-import { refreshDatabase, fetchDatabasesIfNeeded } from '../actions/databases';
-import { fetchTablesIfNeeded } from '../actions/tables';
+import * as DbAction from '../actions/databases';
+import { fetchTablesIfNeeded, selectTablesForDiagram } from '../actions/tables';
 import { fetchTableColumnsIfNeeded } from '../actions/columns';
 import { fetchTableTriggersIfNeeded } from '../actions/triggers';
 import { fetchViewsIfNeeded } from '../actions/views';
 import { fetchRoutinesIfNeeded } from '../actions/routines';
 import { getSQLScriptIfNeeded } from '../actions/sqlscripts';
+import { fetchTableKeysIfNeeded } from '../actions/keys';
 import DatabaseFilter from '../components/database-filter.jsx';
 import DatabaseList from '../components/database-list.jsx';
+import DatabaseDiagramModal from '../components/database-diagram-modal.jsx';
 import Header from '../components/header.jsx';
 import Footer from '../components/footer.jsx';
 import Query from '../components/query.jsx';
@@ -54,6 +56,7 @@ class QueryBrowserContainer extends Component {
     routines: PropTypes.object.isRequired,
     queries: PropTypes.object.isRequired,
     sqlscripts: PropTypes.object.isRequired,
+    keys: PropTypes.object.isRequired,
     dispatch: PropTypes.func.isRequired,
     history: PropTypes.object.isRequired,
     route: PropTypes.object.isRequired,
@@ -97,7 +100,7 @@ class QueryBrowserContainer extends Component {
 
     const lastConnectedDB = connections.databases[connections.databases.length - 1];
 
-    dispatch(fetchDatabasesIfNeeded());
+    dispatch(DbAction.fetchDatabasesIfNeeded());
     dispatch(fetchTablesIfNeeded(lastConnectedDB));
     dispatch(fetchViewsIfNeeded(lastConnectedDB));
     dispatch(fetchRoutinesIfNeeded(lastConnectedDB));
@@ -162,7 +165,60 @@ class QueryBrowserContainer extends Component {
 
   onRefreshDatabase(database) {
     const { dispatch } = this.props;
-    dispatch(refreshDatabase(database));
+    dispatch(DbAction.refreshDatabase(database));
+  }
+
+  onShowDiagramModal(database) {
+    const { dispatch } = this.props;
+    dispatch(DbAction.showDatabaseDiagram(database.name));
+  }
+
+  onGenerateDatabaseDiagram(database) {
+    const { dispatch } = this.props;
+    const selectedTables = [];
+
+    dispatch(DbAction.generateDatabaseDiagram());
+
+    $(':checkbox:checked', 'div.ui.list').map((index, checkbox) => {
+      selectedTables.push(checkbox.id);
+    });
+
+    dispatch(selectTablesForDiagram(selectedTables));
+    this.fetchTableDiagramData(database, selectedTables);
+  }
+
+  onAddRelatedTables(relatedTables) {
+    const { dispatch, databases, tables } = this.props;
+    const database = databases.diagramDatabase;
+    const tablesOnDiagram = tables.selectedTablesForDiagram;
+    const selectedTables = union(tablesOnDiagram, relatedTables);
+
+    dispatch(selectTablesForDiagram(selectedTables));
+    this.fetchTableDiagramData(database, relatedTables);
+  }
+
+  fetchTableDiagramData(database, tables) {
+    const { dispatch } = this.props;
+    tables.map((item) => {
+      dispatch(fetchTableColumnsIfNeeded(database, item));
+      dispatch(fetchTableKeysIfNeeded(database, item));
+    });
+  }
+
+  onSaveDatabaseDiagram(diagram) {
+    this.props.dispatch(DbAction.saveDatabaseDiagram(diagram));
+  }
+
+  onExportDatabaseDiagram(diagram, imageType) {
+    this.props.dispatch(DbAction.exportDatabaseDiagram(diagram, imageType));
+  }
+
+  onOpenDatabaseDiagram() {
+    this.props.dispatch(DbAction.openDatabaseDiagram());
+  }
+
+  onCloseDiagramModal() {
+    this.props.dispatch(DbAction.closeDatabaseDiagram());
   }
 
   getCurrentQuery() {
@@ -239,6 +295,36 @@ class QueryBrowserContainer extends Component {
 
   closeTab() {
     this.removeQuery(this.props.queries.currentQueryId);
+  }
+
+  renderDatabaseDiagramModal() {
+    const {
+      databases,
+      tables,
+      columns,
+      views,
+      keys,
+    } = this.props;
+
+    const selectedDB = databases.diagramDatabase;
+
+    return (
+      <DatabaseDiagramModal
+        database={selectedDB}
+        tables={tables.itemsByDatabase[selectedDB]}
+        selectedTables={tables.selectedTablesForDiagram}
+        views={views.viewsByDatabase[selectedDB]}
+        columnsByTable={columns.columnsByTable[selectedDB]}
+        tableKeys={keys.keysByTable[selectedDB]}
+        diagramJSON={databases.diagramJSON}
+        isSaving={databases.isSaving}
+        onGenerateDatabaseDiagram={::this.onGenerateDatabaseDiagram}
+        addRelatedTables={::this.onAddRelatedTables}
+        onSaveDatabaseDiagram={::this.onSaveDatabaseDiagram}
+        onExportDatabaseDiagram={::this.onExportDatabaseDiagram}
+        onOpenDatabaseDiagram={::this.onOpenDatabaseDiagram}
+        onClose={::this.onCloseDiagramModal} />
+    );
   }
 
   renderTabQueries() {
@@ -383,13 +469,15 @@ class QueryBrowserContainer extends Component {
                   onExecuteDefaultQuery={::this.onExecuteDefaultQuery}
                   onSelectTable={::this.onSelectTable}
                   onGetSQLScript={::this.onGetSQLScript}
-                  onRefreshDatabase={::this.onRefreshDatabase} />
+                  onRefreshDatabase={::this.onRefreshDatabase}
+                  onShowDiagramModal={::this.onShowDiagramModal} />
               </div>
             </ResizableBox>
           </div>
           <div style={STYLES.content}>
               {this.renderTabQueries()}
           </div>
+          {this.props.databases.showingDiagram && this.renderDatabaseDiagramModal()}
         </div>
         <div style={STYLES.footer}>
           <Footer status={status} />
@@ -401,7 +489,19 @@ class QueryBrowserContainer extends Component {
 
 
 function mapStateToProps (state) {
-  const { connections, databases, tables, columns, triggers, views, routines, queries, sqlscripts, status } = state;
+  const {
+    connections,
+    databases,
+    tables,
+    columns,
+    triggers,
+    views,
+    routines,
+    queries,
+    sqlscripts,
+    keys,
+    status,
+  } = state;
 
   return {
     connections,
@@ -413,6 +513,7 @@ function mapStateToProps (state) {
     routines,
     queries,
     sqlscripts,
+    keys,
     status,
   };
 }

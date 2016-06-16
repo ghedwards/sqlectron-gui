@@ -7,6 +7,11 @@ const INITIAL_STATE = {
   isFetching: false,
   didInvalidate: false,
   items: [],
+  showingDiagram: false,
+  diagramDatabase: null,
+  fileName: null,
+  diagramJSON: null,
+  isSaving: false,
 };
 
 
@@ -38,6 +43,58 @@ export default function (state = INITIAL_STATE, action) {
       isFetching: false,
       didInvalidate: true,
       error: action.error,
+    };
+  }
+  case types.SHOW_DATABASE_DIAGRAM: {
+    return {
+      ...state,
+      showingDiagram: true,
+      diagramDatabase: action.name,
+    };
+  }
+  case types.CLOSE_DATABASE_DIAGRAM: {
+    return {
+      ...state,
+      showingDiagram: false,
+      diagramDatabase: null,
+      diagramJSON: null,
+    };
+  }
+  case types.GENERATE_DATABASE_DIAGRAM: {
+    return {
+      ...state,
+      fileName: null,
+    };
+  }
+  case types.SAVE_DIAGRAM_REQUEST:
+  case types.EXPORT_DIAGRAM_REQUEST: {
+    return {
+      ...state,
+      isSaving: true,
+    };
+  }
+  case types.SAVE_DIAGRAM_SUCCESS:
+  case types.EXPORT_DIAGRAM_SUCCESS: {
+    return {
+      ...state,
+      fileName: action.fileName,
+      isSaving: false,
+    };
+  }
+  case types.OPEN_DIAGRAM_SUCCESS: {
+    return {
+      ...state,
+      fileName: action.fileName,
+      diagramJSON: action.diagramJSON,
+    };
+  }
+  case types.SAVE_DIAGRAM_FAILURE:
+  case types.EXPORT_DIAGRAM_FAILURE:
+  case types.OPEN_DIAGRAM_FAILURE: {
+    return {
+      ...state,
+      error: action.error,
+      isSaving: false,
     };
   }
   case queryTypes.EXECUTE_QUERY_SUCCESS: {
