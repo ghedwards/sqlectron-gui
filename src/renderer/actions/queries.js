@@ -1,7 +1,7 @@
 import path from 'path';
 import { cloneDeep, trim } from 'lodash';
 import csvStringify from 'csv-stringify';
-import { clipboard } from 'electron'; // eslint-disable-line import/no-unresolved
+import { clipboard } from 'electron';
 import { getCurrentDBConn, getDBConnByName } from './connections';
 import { rowsValuesToString } from '../utils/convert';
 import { showSaveDialog, saveFile } from '../utils/file-handler';
@@ -41,7 +41,7 @@ export function removeQuery (id) {
 export function executeQueryIfNeeded (query) {
   return (dispatch, getState) => {
     if (shouldExecuteQuery(query, getState())) {
-      dispatch(executeQuery(query));
+      return dispatch(executeQuery(query));
     }
   };
 }
@@ -69,7 +69,7 @@ export function executeDefaultSelectQueryIfNeeded (database, table) {
 export function updateQueryIfNeeded (query, selectedQuery) {
   return (dispatch, getState) => {
     if (shouldUpdateQuery(query, selectedQuery, getState())) {
-      dispatch(updateQuery(query, selectedQuery));
+      return dispatch(updateQuery(query, selectedQuery));
     }
   };
 }
@@ -83,7 +83,7 @@ function shouldUpdateQuery (query, selectedQuery, state) {
   if (!currentQuery) return true;
   if (currentQuery.isExecuting) return false;
   if (query === currentQuery.query
-      && (selectedQuery !== undefined && selectedQuery === currentQuery.selectedQuery)) {
+      && ( selectedQuery !== undefined && selectedQuery === currentQuery.selectedQuery ) ) {
     return false;
   }
 
@@ -96,7 +96,7 @@ export function appendQuery (query) {
     const newLine = !currentQuery ? '' : '\n';
     const appendedQuery = `${currentQuery}${newLine}${query}`;
     if (!currentQuery.isExecuting) {
-      dispatch(updateQuery(appendedQuery));
+      return dispatch(updateQuery(appendedQuery));
     }
   };
 }
@@ -182,7 +182,7 @@ function stringifyResultToCSV(rows) {
   }
 
   const header = Object.keys(rows[0]).reduce((_header, col) => {
-    _header[col] = col; // eslint-disable-line no-param-reassign
+    _header[col] = col;
     return _header;
   }, {});
 
@@ -192,12 +192,9 @@ function stringifyResultToCSV(rows) {
   ];
 
   return new Promise((resolve, reject) => {
-    csvStringify(data, (err, csv) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(csv);
-      }
+    csvStringify(data, function(err, csv) {
+      if (err) { return reject(err); }
+      resolve(csv);
     });
   });
 }

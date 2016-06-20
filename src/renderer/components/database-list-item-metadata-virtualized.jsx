@@ -2,6 +2,7 @@ import React, { Component, PropTypes } from 'react';
 import DatabaseItem from './database-item.jsx';
 import ScrollerOffset from './scroller-offset.jsx'
 import { VirtualScroll } from 'react-virtualized'
+import 'react-virtualized/styles.css';
 
 const STYLE = {
   header: { fontSize: '0.85em', color: '#636363' },
@@ -24,17 +25,35 @@ export default class DbMetadataList extends Component {
     scrollHeight: PropTypes.number.isRequired,
     scrollTop: PropTypes.number.isRequired,
     offsetTop: PropTypes.number.isRequired,
+    width: React.PropTypes.oneOfType([
+      React.PropTypes.string,
+      React.PropTypes.number]),
   }
 
   constructor(props, context) {
     super(props, context);
-    this.state = {};
+    this.state = {tableheights:{}};
+
+    this.onAdjustHeight = this.onAdjustHeight.bind(this);
+    this.rowHeight = this.rowHeight.bind(this);
+    this.renderItem = this.renderItem.bind(this);
   }
 
   componentWillReceiveProps(nextProps) {
     if (this.state.collapsed === undefined) {
       this.setState({ collapsed: !!nextProps.collapsed });
     }
+  }
+
+  onAdjustHeight({height, table}){
+    let tableheights = this.state.tableheights;
+    tableheights[table] = height;
+    this.setState({tableheights:tableheights});
+    if ( this.metadataScroll ) {
+      this.metadataScroll.recomputeRowHeights();
+      this.metadataScroll.forceUpdate();
+    }
+
   }
 
   toggleCollapse() {
@@ -55,6 +74,16 @@ export default class DbMetadataList extends Component {
         {this.props.title}
       </span>
     );
+  }
+
+  rowHeight({index}) {
+    var height = 30, table = this.props.items[index];
+
+    if ( this.state.tableheights[table.name] ) {
+      height = this.state.tableheights[table.name] + 30;
+    }
+
+    return height;
   }
 
   renderItem({ index }){
@@ -85,6 +114,7 @@ export default class DbMetadataList extends Component {
           style={cssStyle}
           columnsByTable={this.props.columnsByTable}
           triggersByTable={this.props.triggersByTable}
+          onAdjustHeight={this.onAdjustHeight}
           onSelectItem={onSelectItem}
           onExecuteDefaultQuery={onExecuteDefaultQuery}
           onGetSQLScript={onGetSQLScript} />
@@ -114,7 +144,7 @@ export default class DbMetadataList extends Component {
     return items.map(item => {
       const hasChildElements = !!onSelectItem;
 
-      const cssStyle = { ...STYLE.item };
+      const cssStyle = {...STYLE.item};
       if (this.state.collapsed) {
         cssStyle.display = 'none';
       }
@@ -142,6 +172,7 @@ export default class DbMetadataList extends Component {
       scrollHeight,
       scrollTop,
       offsetTop,
+      width,
     } = this.props;
 
     return (
@@ -155,13 +186,14 @@ export default class DbMetadataList extends Component {
 
               {({ scrollHeight, scrollTop }) => (
                 <VirtualScroll
+                  ref={(ref) => this.metadataScroll = ref}
                   height={scrollHeight}
-                  rowCount={items?items.length:0}
-                  rowHeight={30}
-                  rowRenderer={this.renderItem.bind(this)}
+                  rowCount={(items&&!this.state.collapsed)?items.length:0}
+                  rowHeight={this.rowHeight}
+                  rowRenderer={this.renderItem}
                   scrollTop={scrollTop}
                   autoHeight
-                  width={100}
+                  width={width}
                 />
               )}
             </ScrollerOffset>

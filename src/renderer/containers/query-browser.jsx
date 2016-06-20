@@ -22,7 +22,7 @@ import Query from '../components/query.jsx';
 import Loader from '../components/loader.jsx';
 import PromptModal from '../components/prompt-modal.jsx';
 import MenuHandler from '../menu-handler';
-
+import scrollbarSize from 'dom-helpers/util/scrollbarSize'
 
 import { ResizableBox } from 'react-resizable';
 require('../components/react-resizable.css');
@@ -31,20 +31,15 @@ require('../components/react-tabs.scss');
 const SIDEBAR_WIDTH = 235;
 const STYLES = {
   wrapper: {},
-  container: {
-    display: 'flex',
-    height: '100vh',
-    boxSizing: 'border-box',
-    padding: '50px 10px 40px 10px',
-  },
-  sidebar: { overflowY: 'auto' },
+  container: { display: 'flex', height: '100vh', boxSizing: 'border-box', padding: '50px 10px 40px 10px' },
+  sidebar: { overflowY: 'hidden', height: '100%', boxSizing: 'border-box', paddingBottom: '10px', position: 'relative' },
   content: { flex: 1, overflow: 'auto', paddingLeft: '5px' },
-  resizeable: { width: 'auto', maxWidth: '100%' },
+  resizeable: { width: 'auto', height: '100%', maxWidth: '100%', position: 'relative', overflow: 'hidden' },
 };
 
 
 const CLIENTS = sqlectron.db.CLIENTS.reduce((clients, dbClient) => {
-  clients[dbClient.key] = { title: dbClient.name }; // eslint-disable-line no-param-reassign
+  clients[dbClient.key] = { title: dbClient.name };
   return clients;
 }, {});
 
@@ -94,9 +89,7 @@ class QueryBrowserContainer extends Component {
   componentWillReceiveProps (nextProps) {
     const { dispatch, history, connections } = nextProps;
 
-    if (connections.error ||
-       (!connections.connecting && !connections.server && !connections.waitingSSHPassword)
-    ) {
+    if (connections.error || (!connections.connecting && !connections.server && !connections.waitingSSHPassword)) {
       history.pushState(null, '/');
       return;
     }
@@ -186,8 +179,9 @@ class QueryBrowserContainer extends Component {
 
     dispatch(DbAction.generateDatabaseDiagram());
 
-    $(':checkbox:checked', 'div.ui.list')
-      .map((index, checkbox) => selectedTables.push(checkbox.id));
+    $(':checkbox:checked', 'div.ui.list').map((index, checkbox) => {
+      selectedTables.push(checkbox.id);
+    });
 
     dispatch(selectTablesForDiagram(selectedTables));
     this.fetchTableDiagramData(database, selectedTables);
@@ -201,6 +195,14 @@ class QueryBrowserContainer extends Component {
 
     dispatch(selectTablesForDiagram(selectedTables));
     this.fetchTableDiagramData(database, relatedTables);
+  }
+
+  fetchTableDiagramData(database, tables) {
+    const { dispatch } = this.props;
+    tables.map((item) => {
+      dispatch(fetchTableColumnsIfNeeded(database, item));
+      dispatch(fetchTableKeysIfNeeded(database, item));
+    });
   }
 
   onSaveDatabaseDiagram(diagram) {
@@ -236,14 +238,6 @@ class QueryBrowserContainer extends Component {
       'sqlectron:query-focus': () => this.focusQuery(),
       'sqlectron:toggle-database-search': () => this.toggleDatabaseSearch(),
       'sqlectron:toggle-database-objects-search': () => this.toggleDatabaseObjectsSearch(),
-    });
-  }
-
-  fetchTableDiagramData(database, tables) {
-    const { dispatch } = this.props;
-    tables.forEach((item) => {
-      dispatch(fetchTableColumnsIfNeeded(database, item));
-      dispatch(fetchTableKeysIfNeeded(database, item));
     });
   }
 
@@ -398,7 +392,7 @@ class QueryBrowserContainer extends Component {
   }
 
   render() {
-    const { filter } = this.state;
+    const { filter, sideBarWidth } = this.state;
     const {
       status,
       connections,
@@ -414,7 +408,7 @@ class QueryBrowserContainer extends Component {
       return (
         <PromptModal
           type="password"
-          title={'SSH Private Key Passphrase'}
+          title={`SSH Private Key Passphrase`}
           message="Enter the private key passphrase:"
           onCancelClick={::this.onPromptCancelClick}
           onOKClick={::this.onPromptOKClick} />
@@ -436,7 +430,7 @@ class QueryBrowserContainer extends Component {
 
     return (
       <div style={STYLES.wrapper}>
-        {isLoading && <Loader message={status} type="page" />}
+        { isLoading && <Loader message={status} type="page" />}
         <div style={STYLES.header}>
           <Header items={breadcrumb}
             onCloseConnectionClick={::this.onCloseConnectionClick}
@@ -446,12 +440,14 @@ class QueryBrowserContainer extends Component {
           <div style={STYLES.sidebar}>
             <ResizableBox className="react-resizable react-resizable-ew-resize"
               onResizeStop={(event, { size }) => this.setState({ sideBarWidth: size.width })}
+              onResize={(event, { size }) => this.setState({ sideBarWidth: size.width })}
+              style={{"height":"100%","width":sideBarWidth}}
               width={SIDEBAR_WIDTH}
               height={NaN}
               minConstraints={[SIDEBAR_WIDTH, 300]}
               maxConstraints={[750, 10000]}>
               <div className="ui vertical menu" style={STYLES.resizeable}>
-                <div className="item active" style={{ textAlign: 'center' }}>
+                <div className="item active" style={{textAlign: 'center'}}>
                   <b>{currentClient.title}</b>
                 </div>
                 <div className="item">
@@ -463,6 +459,7 @@ class QueryBrowserContainer extends Component {
                 </div>
                 <DatabaseList
                   ref="databaseList"
+                  width={sideBarWidth-scrollbarSize()-2}
                   databases={filteredDatabases}
                   isFetching={databases.isFetching}
                   tablesByDatabase={tables.itemsByDatabase}

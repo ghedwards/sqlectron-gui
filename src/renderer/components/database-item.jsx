@@ -17,11 +17,12 @@ export default class DatabaseItem extends Component {
     onSelectItem: PropTypes.func,
     onExecuteDefaultQuery: PropTypes.func,
     onGetSQLScript: PropTypes.func,
+    onAdjustHeight: PropTypes.func,
   }
 
   constructor(props, context) {
     super(props, context);
-    this.state = {};
+    this.state = {height:0};
     this.contextMenu = null;
   }
 
@@ -80,8 +81,44 @@ export default class DatabaseItem extends Component {
     }
   }
 
+  componentDidUpdate() {
+
+    const { columnsByTable, onAdjustHeight, item } = this.props;
+
+    let tempheight = 0;    
+
+    if ( onAdjustHeight ) {
+
+        if ( this.state.tableCollapsed && columnsByTable && columnsByTable[item.name] ) {
+            tempheight = (columnsByTable[item.name].length*30);
+        } else {
+            tempheight = 0;
+        }
+
+        onAdjustHeight({height:tempheight,table:item.name});
+        
+    }
+
+  }
+
+  onToggleColumns() {
+
+
+
+  }
+
+  onToggleTriggers() {
+
+
+
+  }
+
   toggleTableCollapse() {
+
+    const { columnsByTable, onAdjustHeight, item } = this.props;
+
     this.setState({ tableCollapsed: !this.state.tableCollapsed });
+
   }
 
   renderSubItems(table) {
@@ -101,11 +138,13 @@ export default class DatabaseItem extends Component {
         <TableSubmenu
           title="Columns"
           table={table}
+          onToggle={this.onToggleColumns}
           itemsByTable={columnsByTable}
           database={database} />
         <TableSubmenu
           collapsed
           title="Triggers"
+          onToggle={this.onToggleTriggers}
           table={table}
           itemsByTable={triggersByTable}
           database={database} />
@@ -114,7 +153,8 @@ export default class DatabaseItem extends Component {
   }
 
   render() {
-    const { database, item, style, onSelectItem, dbObjectType } = this.props;
+    const { database, item, style, onSelectItem, dbObjectType, 
+      onAdjustHeight, columnsByTable, triggersByTable } = this.props;
     const hasChildElements = !!onSelectItem;
     const onSingleClick = hasChildElements
       ? () => { onSelectItem(database, item); this.toggleTableCollapse(); }

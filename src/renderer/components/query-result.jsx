@@ -2,6 +2,7 @@ import React, { Component, PropTypes } from 'react';
 import Loader from './loader.jsx';
 import Message from './message.jsx';
 import QueryResultTable from './query-result-table.jsx';
+import QueryResultTableVirtualized from './query-result-table-virtualized.jsx';
 
 export default class QueryResult extends Component {
   static propTypes = {
@@ -39,18 +40,7 @@ export default class QueryResult extends Component {
     }
   }
 
-  renderQueryResult(queryResult) {
-    const {
-      fields,
-      rows,
-      rowCount,
-      affectedRows,
-      queryIndex,
-      totalQueries,
-      command,
-      isMultipleResults,
-    } = queryResult;
-
+  renderQueryResult({ fields, rows, rowCount, affectedRows, queryIndex, totalQueries, command, isMultipleResults }) {
     if (command !== 'SELECT') {
       const msgAffectedRows = affectedRows ? `Affected rows: ${affectedRows}.` : '';
       return (
@@ -65,9 +55,9 @@ export default class QueryResult extends Component {
     if (isMultipleResults) {
       widthOffset += 30; // padding of the query result box
     }
-
+    
     const tableResult = (
-      <QueryResultTable
+      <QueryResultTableVirtualized
         key={queryIndex}
         widthOffset={widthOffset}
         heigthOffset={this.props.heigthOffset}
@@ -104,7 +94,7 @@ export default class QueryResult extends Component {
 
     if (isExecuting) {
       return (
-        <div ref="loader" style={{ minHeight: '250px' }}>
+        <div ref="loader" style={{minHeight: '250px'}}>
           <Loader message="Loading" type="active" inverted />
         </div>
       );
